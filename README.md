@@ -14,9 +14,18 @@ uvicorn visual_underwriting.main:app --host 0.0.0.0 --port 8000
 ```
 
 Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
-the upload UI. The page lets you choose shop vs cattle, select an image, enter
-metadata, submit to the API, and view the decision, weighted score, confidence,
-fraud flags, and raw JSON response.
+the image-first assessment UI. The page lets you upload an image without choosing
+shop/cattle first. The agent identifies what it sees and returns:
+
+- identified asset type and identification confidence
+- overall visual confidence score
+- inventory score
+- footfall signal score
+- shop condition score
+- business vintage signal score
+- shop genuineness score
+- operational activity score
+- guardrail notes, red flags, and the raw JSON response
 
 Useful configuration:
 
@@ -42,6 +51,46 @@ Both endpoints accept `multipart/form-data`:
   `captured_lat`, `captured_lng`, `declared_lat`, `declared_lng`,
   `captured_at`, `declared_business_hours`, and `declared_cattle_count`.
 - Optional `X-Request-ID` header for caller-provided correlation.
+
+#### Image-first visual assessment
+
+Use this endpoint for the browser lab UI. It requires only an image and optional
+metadata/context notes. It does not replace the production shop/cattle
+underwriting endpoints below.
+
+```bash
+curl -X POST "http://localhost:8000/v1/underwriting/assess" \
+  -H "X-Request-ID: lab-req-123" \
+  -F "image=@./shop.jpg;type=image/jpeg" \
+  -F 'metadata={"notes":"FO submitted this as a shop image."}'
+```
+
+Sample response:
+
+```json
+{
+  "request_id": "lab-req-123",
+  "decision": "SCORED",
+  "result": {
+    "identified_asset_type": "shop",
+    "identified_asset_confidence": 0.94,
+    "overall_confidence_score": 82,
+    "assessment_confidence": 0.88,
+    "shop_scorecard": {
+      "inventory_score": 80,
+      "footfall_signal_score": 70,
+      "shop_condition_score": 85,
+      "business_vintage_signal_score": 75,
+      "shop_genuineness_score": 90,
+      "operational_activity_score": 78
+    },
+    "red_flags": [],
+    "guardrail_notes": ["Scores are based only on visible evidence."],
+    "explanation": ["The image appears to show an operating retail shop."]
+  },
+  "explanation": ["The image appears to show an operating retail shop."]
+}
+```
 
 #### Shop scoring
 

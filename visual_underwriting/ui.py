@@ -5,245 +5,349 @@ def render_underwriting_ui() -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Visual Underwriting</title>
+  <title>Visual Underwriting Lab</title>
   <style>
     :root {
       color-scheme: light;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f6f7fb;
-      color: #172033;
+      background: #f3f6fb;
+      color: #152033;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 32px; }
-    main { max-width: 1120px; margin: 0 auto; }
-    header { margin-bottom: 24px; }
-    h1 { margin: 0 0 8px; font-size: 32px; }
-    p { color: #536079; line-height: 1.5; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr); gap: 24px; }
+    body { margin: 0; padding: 28px; }
+    main { max-width: 1240px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+    h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.03em; }
+    h2 { margin: 0 0 14px; }
+    p { color: #5d687c; line-height: 1.5; margin: 0; }
+    .badge {
+      background: #e9f0ff;
+      color: #2f5dcc;
+      border-radius: 999px;
+      padding: 9px 13px;
+      font-weight: 800;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .grid { display: grid; grid-template-columns: minmax(340px, 0.82fr) minmax(420px, 1fr); gap: 22px; }
     .card {
       background: #fff;
-      border: 1px solid #dfe4ef;
-      border-radius: 18px;
-      box-shadow: 0 18px 45px rgba(25, 35, 60, 0.08);
-      padding: 24px;
+      border: 1px solid #dce3ef;
+      border-radius: 22px;
+      box-shadow: 0 20px 50px rgba(23, 35, 61, 0.08);
+      padding: 22px;
     }
-    label { display: block; font-weight: 650; font-size: 13px; margin-bottom: 6px; color: #27324a; }
-    input, select {
+    label { display: block; font-weight: 750; font-size: 13px; margin: 0 0 7px; color: #25304a; }
+    input, textarea {
       width: 100%;
-      border: 1px solid #cfd6e6;
-      border-radius: 10px;
-      padding: 11px 12px;
+      border: 1px solid #ccd5e5;
+      border-radius: 12px;
+      padding: 12px 13px;
       font: inherit;
       background: #fff;
     }
-    input:focus, select:focus {
+    textarea { min-height: 86px; resize: vertical; }
+    input:focus, textarea:focus {
       outline: 3px solid rgba(47, 111, 237, 0.16);
       border-color: #2f6fed;
     }
-    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .full { grid-column: 1 / -1; }
-    button {
-      border: 0;
-      border-radius: 12px;
-      padding: 13px 18px;
-      background: #2f6fed;
-      color: #fff;
-      font-weight: 750;
-      cursor: pointer;
-      width: 100%;
-      margin-top: 18px;
+    .fields { display: grid; gap: 16px; }
+    .optional-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .preview-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 320px;
+      border: 1px dashed #b9c5d9;
+      border-radius: 18px;
+      background: #f8faff;
+      overflow: hidden;
     }
-    button:disabled { opacity: 0.65; cursor: wait; }
     .preview {
       display: none;
       width: 100%;
-      max-height: 320px;
+      max-height: 440px;
       object-fit: contain;
-      border-radius: 14px;
-      border: 1px solid #dfe4ef;
-      background: #f8f9fc;
-      margin-top: 10px;
+      background: #f8faff;
     }
+    .empty-preview { color: #71809b; font-weight: 700; text-align: center; padding: 18px; }
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #2f6fed, #6045e8);
+      color: #fff;
+      font-weight: 850;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 4px;
+      box-shadow: 0 12px 24px rgba(47, 111, 237, 0.24);
+    }
+    button:disabled { opacity: 0.68; cursor: wait; }
+    .help { font-size: 12px; color: #6b778f; margin-top: 7px; }
+    .status-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
       border-radius: 999px;
       padding: 8px 12px;
-      font-weight: 800;
+      font-weight: 850;
       font-size: 13px;
       background: #eef2ff;
-      color: #2f4fbb;
+      color: #3153bd;
     }
     .status.scored { background: #eaf8ef; color: #16713a; }
     .status.manual { background: #fff4e6; color: #a55a00; }
-    .metric { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
-    .metric div { background: #f7f8fb; border-radius: 14px; padding: 16px; }
-    .metric span { display: block; color: #6a7489; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-    .metric strong { display: block; font-size: 30px; margin-top: 6px; }
+    .hero-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 18px; }
+    .metric, .score-card {
+      background: #f7f9fd;
+      border: 1px solid #edf1f7;
+      border-radius: 16px;
+      padding: 15px;
+    }
+    .metric span, .score-card span {
+      display: block;
+      color: #6a758d;
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 28px;
+      letter-spacing: -0.03em;
+    }
+    .score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .score-value { display: flex; align-items: baseline; gap: 4px; margin-top: 7px; }
+    .score-value strong { font-size: 26px; letter-spacing: -0.03em; }
+    .bar { height: 8px; background: #e3e8f2; border-radius: 999px; overflow: hidden; margin-top: 10px; }
+    .bar div { height: 100%; width: 0%; background: linear-gradient(90deg, #2f6fed, #19a76f); border-radius: inherit; }
+    ul { margin: 8px 0 0; padding-left: 20px; color: #4f5b70; }
     pre {
       white-space: pre-wrap;
       word-break: break-word;
-      background: #111827;
-      color: #e5e7eb;
+      background: #101827;
+      color: #e6edf6;
       padding: 16px;
-      border-radius: 14px;
+      border-radius: 16px;
       overflow: auto;
-      min-height: 180px;
+      min-height: 170px;
+      margin-bottom: 0;
     }
-    .error { color: #b42318; font-weight: 700; }
-    .help { font-size: 12px; color: #6a7489; margin-top: 6px; }
-    @media (max-width: 860px) {
+    .error { color: #b42318; font-weight: 800; }
+    .muted { color: #6a758d; }
+    @media (max-width: 930px) {
       body { padding: 18px; }
-      .grid, .fields, .metric { grid-template-columns: 1fr; }
+      header { display: block; }
+      .badge { display: inline-flex; margin-top: 12px; }
+      .grid, .hero-metrics, .score-grid, .optional-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <h1>Visual Underwriting</h1>
-      <p>Upload a shop or cattle image, enter capture metadata, and submit it to the underwriting service for a confidence result.</p>
+      <div>
+        <h1>Visual Underwriting Lab</h1>
+        <p>Upload any field image. The agent identifies what it sees and returns visual confidence plus business-quality signals.</p>
+      </div>
+      <span class="badge">Image-first agent assessment</span>
     </header>
+
     <section class="grid">
-      <form id="underwriting-form" class="card">
+      <form id="assessment-form" class="card">
         <div class="fields">
           <div>
-            <label for="asset_type">Submission type</label>
-            <select id="asset_type" name="asset_type">
-              <option value="shop">Shop</option>
-              <option value="cattle">Cattle</option>
-            </select>
-          </div>
-          <div>
-            <label for="request_id">Request ID</label>
-            <input id="request_id" name="request_id" placeholder="optional correlation id">
-          </div>
-          <div class="full">
-            <label for="image">Image</label>
+            <label for="image">Upload image</label>
             <input id="image" name="image" type="file" accept="image/*" required>
-            <div class="help">The API validates the actual image bytes, not just the filename.</div>
+            <div class="help">No shop/cattle selection needed. The model identifies the image type.</div>
+          </div>
+
+          <div class="preview-wrap">
+            <div id="empty-preview" class="empty-preview">Image preview will appear here</div>
             <img id="preview" class="preview" alt="Selected upload preview">
           </div>
+
           <div>
-            <label for="captured_lat">Captured latitude</label>
-            <input id="captured_lat" type="number" step="any" required value="12.9716">
+            <label for="request_id">Request ID</label>
+            <input id="request_id" placeholder="optional correlation id">
           </div>
+
           <div>
-            <label for="captured_lng">Captured longitude</label>
-            <input id="captured_lng" type="number" step="any" required value="77.5946">
+            <label for="notes">Optional context / guardrail notes</label>
+            <textarea id="notes" placeholder="Example: FO submitted this as a kirana shop image. Do not enter private customer data."></textarea>
           </div>
-          <div>
-            <label for="declared_lat">Declared latitude</label>
-            <input id="declared_lat" type="number" step="any" required value="12.9717">
-          </div>
-          <div>
-            <label for="declared_lng">Declared longitude</label>
-            <input id="declared_lng" type="number" step="any" required value="77.5947">
-          </div>
-          <div>
-            <label for="captured_at">Captured at</label>
-            <input id="captured_at" type="datetime-local" required>
-          </div>
-          <div>
-            <label for="declared_business_hours">Declared business hours</label>
-            <input id="declared_business_hours" required value="09:00-18:00">
-          </div>
-          <div id="cattle-count-field">
-            <label for="declared_cattle_count">Declared cattle count</label>
-            <input id="declared_cattle_count" type="number" min="0" step="1" value="3">
-          </div>
+
+          <details>
+            <summary class="muted">Optional capture metadata</summary>
+            <div class="optional-grid" style="margin-top: 12px;">
+              <div>
+                <label for="captured_lat">Captured latitude</label>
+                <input id="captured_lat" type="number" step="any" placeholder="optional">
+              </div>
+              <div>
+                <label for="captured_lng">Captured longitude</label>
+                <input id="captured_lng" type="number" step="any" placeholder="optional">
+              </div>
+              <div>
+                <label for="captured_at">Captured at</label>
+                <input id="captured_at" type="datetime-local">
+              </div>
+            </div>
+          </details>
+
+          <button id="submit-button" type="submit">Identify & score image</button>
         </div>
-        <button id="submit-button" type="submit">Run visual underwriting</button>
       </form>
+
       <aside class="card">
         <div id="summary">
-          <span class="status">Waiting for submission</span>
-          <div class="metric">
-            <div><span>Decision</span><strong>-</strong></div>
-            <div><span>Confidence</span><strong>-</strong></div>
+          <div class="status-row">
+            <span class="status">Waiting for image</span>
+          </div>
+          <div class="hero-metrics">
+            <div class="metric"><span>Identified as</span><strong>-</strong></div>
+            <div class="metric"><span>Overall confidence</span><strong>-</strong></div>
+            <div class="metric"><span>Assessment confidence</span><strong>-</strong></div>
           </div>
         </div>
-        <h2>Response</h2>
+
+        <h2>Business visual scorecard</h2>
+        <div id="score-grid" class="score-grid">
+          <p class="muted">Run an assessment to see inventory, footfall, shop condition, vintage, genuineness, and activity scores.</p>
+        </div>
+
+        <h2 style="margin-top: 22px;">Raw response</h2>
         <pre id="response">{}</pre>
       </aside>
     </section>
   </main>
+
   <script>
-    const form = document.getElementById("underwriting-form");
-    const assetType = document.getElementById("asset_type");
+    const form = document.getElementById("assessment-form");
     const imageInput = document.getElementById("image");
     const preview = document.getElementById("preview");
+    const emptyPreview = document.getElementById("empty-preview");
     const submitButton = document.getElementById("submit-button");
     const responseBox = document.getElementById("response");
     const summary = document.getElementById("summary");
-    const cattleCountField = document.getElementById("cattle-count-field");
-    const cattleCountInput = document.getElementById("declared_cattle_count");
-    const capturedAt = document.getElementById("captured_at");
+    const scoreGrid = document.getElementById("score-grid");
 
-    capturedAt.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const scoreLabels = {
+      inventory_score: "Inventory",
+      footfall_signal_score: "Footfall signal",
+      shop_condition_score: "Shop condition",
+      business_vintage_signal_score: "Vintage signal",
+      shop_genuineness_score: "Looks genuine",
+      operational_activity_score: "Operational activity"
+    };
 
-    function updateCattleVisibility() {
-      const isCattle = assetType.value === "cattle";
-      cattleCountField.style.display = isCattle ? "block" : "none";
-      cattleCountInput.required = isCattle;
-    }
-
-    function toIsoFromLocalDateTime(value) {
-      return new Date(value).toISOString();
+    function optionalNumber(id) {
+      const value = document.getElementById(id).value;
+      return value === "" ? undefined : Number(value);
     }
 
     function metadataPayload() {
-      const isCattle = assetType.value === "cattle";
-      return {
-        captured_lat: Number(document.getElementById("captured_lat").value),
-        captured_lng: Number(document.getElementById("captured_lng").value),
-        declared_lat: Number(document.getElementById("declared_lat").value),
-        declared_lng: Number(document.getElementById("declared_lng").value),
-        captured_at: toIsoFromLocalDateTime(capturedAt.value),
-        declared_business_hours: document.getElementById("declared_business_hours").value,
-        declared_cattle_count: isCattle ? Number(cattleCountInput.value) : null
-      };
+      const payload = {};
+      const lat = optionalNumber("captured_lat");
+      const lng = optionalNumber("captured_lng");
+      const capturedAt = document.getElementById("captured_at").value;
+      const notes = document.getElementById("notes").value.trim();
+
+      if (lat !== undefined) payload.captured_lat = lat;
+      if (lng !== undefined) payload.captured_lng = lng;
+      if (capturedAt) payload.captured_at = new Date(capturedAt).toISOString();
+      if (notes) payload.notes = notes;
+
+      return payload;
     }
 
-    function renderSummary(data) {
-      const statusClass = data.decision === "SCORED" ? "scored" : "manual";
-      const confidence = data.confidence === null || data.confidence === undefined
-        ? "-"
-        : `${Math.round(data.confidence * 100)}%`;
-      summary.innerHTML = `
-        <span class="status ${statusClass}">${data.decision}</span>
-        <div class="metric">
-          <div><span>Weighted score</span><strong>${data.weighted_score ?? "-"}</strong></div>
-          <div><span>Confidence</span><strong>${confidence}</strong></div>
+    function percentFromUnit(value) {
+      return value === null || value === undefined ? "-" : `${Math.round(value * 100)}%`;
+    }
+
+    function renderScoreCard(key, value) {
+      const safeValue = value ?? 0;
+      return `
+        <div class="score-card">
+          <span>${scoreLabels[key]}</span>
+          <div class="score-value"><strong>${safeValue}</strong><small>/100</small></div>
+          <div class="bar"><div style="width: ${Math.max(0, Math.min(100, safeValue))}%"></div></div>
         </div>
       `;
     }
 
+    function renderSummary(data) {
+      const result = data.result;
+      const isManual = data.decision === "REFER_TO_MANUAL_REVIEW";
+      const statusClass = isManual ? "manual" : "scored";
+
+      if (!result) {
+        summary.innerHTML = `
+          <div class="status-row"><span class="status ${statusClass}">${data.decision}</span></div>
+          <p class="muted">${(data.explanation || []).join(" ")}</p>
+        `;
+        scoreGrid.innerHTML = `<p class="muted">No scorecard returned. Route this image to manual review.</p>`;
+        return;
+      }
+
+      summary.innerHTML = `
+        <div class="status-row">
+          <span class="status ${statusClass}">${data.decision}</span>
+          <span class="status">Detected: ${result.identified_asset_type}</span>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric"><span>Identified as</span><strong>${result.identified_asset_type}</strong></div>
+          <div class="metric"><span>Overall confidence</span><strong>${result.overall_confidence_score}</strong></div>
+          <div class="metric"><span>Assessment confidence</span><strong>${percentFromUnit(result.assessment_confidence)}</strong></div>
+        </div>
+        ${(result.red_flags || []).length ? `<h2>Red flags</h2><ul>${result.red_flags.map(flag => `<li>${flag}</li>`).join("")}</ul>` : ""}
+        ${(result.guardrail_notes || []).length ? `<h2 style="margin-top: 18px;">Guardrail notes</h2><ul>${result.guardrail_notes.map(note => `<li>${note}</li>`).join("")}</ul>` : ""}
+      `;
+
+      if (!result.shop_scorecard) {
+        scoreGrid.innerHTML = `<p class="muted">Image was not identified as a shop, so shop scorecard is not applicable.</p>`;
+        return;
+      }
+
+      scoreGrid.innerHTML = Object.entries(result.shop_scorecard)
+        .map(([key, value]) => renderScoreCard(key, value))
+        .join("");
+    }
+
     function renderError(message, detail) {
       summary.innerHTML = `
-        <span class="status manual">Request failed</span>
+        <div class="status-row"><span class="status manual">Request failed</span></div>
         <p class="error">${message}</p>
       `;
+      scoreGrid.innerHTML = `<p class="muted">Fix the input and try again.</p>`;
       responseBox.textContent = JSON.stringify(detail, null, 2);
     }
 
-    assetType.addEventListener("change", updateCattleVisibility);
     imageInput.addEventListener("change", () => {
       const file = imageInput.files[0];
       if (!file) {
         preview.style.display = "none";
+        emptyPreview.style.display = "block";
         preview.removeAttribute("src");
         return;
       }
       preview.src = URL.createObjectURL(file);
       preview.style.display = "block";
+      emptyPreview.style.display = "none";
     });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       submitButton.disabled = true;
-      submitButton.textContent = "Scoring...";
+      submitButton.textContent = "Assessing image...";
       responseBox.textContent = "Submitting...";
 
       const formData = new FormData();
@@ -252,12 +356,10 @@ def render_underwriting_ui() -> str:
 
       const headers = {};
       const requestId = document.getElementById("request_id").value.trim();
-      if (requestId) {
-        headers["X-Request-ID"] = requestId;
-      }
+      if (requestId) headers["X-Request-ID"] = requestId;
 
       try {
-        const response = await fetch(`/v1/underwriting/${assetType.value}`, {
+        const response = await fetch("/v1/underwriting/assess", {
           method: "POST",
           headers,
           body: formData
@@ -273,11 +375,9 @@ def render_underwriting_ui() -> str:
         renderError("Network or browser error", { error: String(error) });
       } finally {
         submitButton.disabled = false;
-        submitButton.textContent = "Run visual underwriting";
+        submitButton.textContent = "Identify & score image";
       }
     });
-
-    updateCattleVisibility();
   </script>
 </body>
 </html>

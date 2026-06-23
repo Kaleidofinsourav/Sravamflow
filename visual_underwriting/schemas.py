@@ -10,6 +10,13 @@ class AssetType(StrEnum):
     CATTLE = "cattle"
 
 
+class VisualAssetCategory(StrEnum):
+    SHOP = "shop"
+    CATTLE = "cattle"
+    OTHER = "other"
+    UNKNOWN = "unknown"
+
+
 class Decision(StrEnum):
     SCORED = "SCORED"
     REFER_TO_MANUAL_REVIEW = "REFER_TO_MANUAL_REVIEW"
@@ -85,6 +92,46 @@ class UnderwritingResponse(BaseModel):
     model_result: VisionUnderwritingResult | None = None
 
 
+class AssessmentMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    captured_lat: float | None = Field(default=None, ge=-90, le=90)
+    captured_lng: float | None = Field(default=None, ge=-180, le=180)
+    captured_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class ShopVisualScorecard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    inventory_score: float = Field(ge=0, le=100)
+    footfall_signal_score: float = Field(ge=0, le=100)
+    shop_condition_score: float = Field(ge=0, le=100)
+    business_vintage_signal_score: float = Field(ge=0, le=100)
+    shop_genuineness_score: float = Field(ge=0, le=100)
+    operational_activity_score: float = Field(ge=0, le=100)
+
+
+class VisualAssessmentResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    identified_asset_type: VisualAssetCategory
+    identified_asset_confidence: float = Field(ge=0, le=1)
+    overall_confidence_score: float = Field(ge=0, le=100)
+    assessment_confidence: float = Field(ge=0, le=1)
+    shop_scorecard: ShopVisualScorecard | None = None
+    red_flags: list[str] = Field(default_factory=list)
+    guardrail_notes: list[str] = Field(default_factory=list)
+    explanation: list[str] = Field(default_factory=list)
+
+
+class VisualAssessmentResponse(BaseModel):
+    request_id: str
+    decision: Decision
+    result: VisualAssessmentResult | None = None
+    explanation: list[str] = Field(default_factory=list)
+
+
 class ImageValidationResult(BaseModel):
     content: bytes
     sha256: str
@@ -94,3 +141,7 @@ class ImageValidationResult(BaseModel):
 
 def vision_json_schema_for_prompt() -> dict[str, Any]:
     return VisionUnderwritingResult.model_json_schema()
+
+
+def visual_assessment_json_schema_for_prompt() -> dict[str, Any]:
+    return VisualAssessmentResult.model_json_schema()

@@ -9,6 +9,8 @@ from visual_underwriting.image_validation import validate_image_upload
 from visual_underwriting.schemas import (
     AssetType,
     Decision,
+    VisualAssessmentResult,
+    VisualAssetCategory,
     UnderwritingMetadata,
     VisionScoreComponents,
     VisionUnderwritingResult,
@@ -25,6 +27,14 @@ class FakeVisionClient:
         self.result = result
 
     def score_image(self, **kwargs: object) -> VisionUnderwritingResult:
+        return self.result
+
+
+class FakeAssessmentClient:
+    def __init__(self, result: VisualAssessmentResult | None = None) -> None:
+        self.result = result or assessment_result()
+
+    def assess_image(self, **kwargs: object) -> VisualAssessmentResult:
         return self.result
 
 
@@ -69,6 +79,28 @@ def vision_result(**overrides: object) -> VisionUnderwritingResult:
     }
     defaults.update(overrides)
     return VisionUnderwritingResult.model_validate(defaults)
+
+
+def assessment_result(**overrides: object) -> VisualAssessmentResult:
+    defaults = {
+        "identified_asset_type": "shop",
+        "identified_asset_confidence": 0.94,
+        "overall_confidence_score": 82,
+        "assessment_confidence": 0.88,
+        "shop_scorecard": {
+            "inventory_score": 80,
+            "footfall_signal_score": 70,
+            "shop_condition_score": 85,
+            "business_vintage_signal_score": 75,
+            "shop_genuineness_score": 90,
+            "operational_activity_score": 78,
+        },
+        "red_flags": [],
+        "guardrail_notes": ["Scores are based only on visible evidence."],
+        "explanation": ["The image appears to show an operating retail shop."],
+    }
+    defaults.update(overrides)
+    return VisualAssessmentResult.model_validate(defaults)
 
 
 def make_agent(
@@ -187,11 +219,30 @@ def test_weighted_score_calculation_correctness() -> None:
 
 
 def test_underwriting_ui_is_served() -> None:
-    app = create_app(settings=settings(), agent=make_agent())
+    app = create_app(settings=settings(), agent=make_agent(), assessment_client=FakeAssessmentClient())
     client = TestClient(app)
 
     response = client.get("/ui")
 
     assert response.status_code == 200
-    assert "Visual Underwriting" in response.text
-    assert "/v1/underwriting/" in response.text
+    assert "Visual Underwriting Lab" in response.text
+    assert "/v1/underwriting/assess" in response.text
+
+
+def test_auto_assessment_endpoint_identifies_image_and_returns_scorecard() -> None:
+    app = create_app(settings=settings(), agent=make_agent(), assessment_client=FakeAssessmentClient())
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/underwriting/assess",
+        files={"image": ("shop.png", PNG_BYTES, "image/png")},
+        data={"metadata": '{"notes":"FO submitted this as a shop image."}'},
+        headers={"X-Request-ID": "auto-assess"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["request_id"] == "auto-assess"
+    assert payload["decision"] == Decision.SCORED
+    assert payload["result"]["identified_asset_type"] == VisualAssetCategory.SHOP
+    assert payload["result"]["shop_scorecard"]["inventory_score"] == 80

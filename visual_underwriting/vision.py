@@ -6,7 +6,15 @@ from typing import Any, Protocol
 from pydantic import ValidationError
 
 from visual_underwriting.config import Settings
-from visual_underwriting.schemas import AssetType, UnderwritingMetadata, VisionUnderwritingResult, vision_json_schema_for_prompt
+from visual_underwriting.schemas import (
+    AssessmentMetadata,
+    AssetType,
+    UnderwritingMetadata,
+    VisionUnderwritingResult,
+    VisualAssessmentResult,
+    visual_assessment_json_schema_for_prompt,
+    vision_json_schema_for_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +33,18 @@ class VisionClient(Protocol):
         metadata: UnderwritingMetadata,
         request_id: str,
     ) -> VisionUnderwritingResult:
+        ...
+
+
+class VisualAssessmentClient(Protocol):
+    def assess_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        metadata: AssessmentMetadata,
+        request_id: str,
+    ) -> VisualAssessmentResult:
         ...
 
 
@@ -90,6 +110,65 @@ class AnthropicVisionClient:
 
         raise VisionModelError("vision model failed after retries") from last_error
 
+    def assess_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        metadata: AssessmentMetadata,
+        request_id: str,
+    ) -> VisualAssessmentResult:
+        last_error: Exception | None = None
+        attempts = self._settings.anthropic_max_retries + 1
+
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self._client.messages.create(
+                    model=self._settings.anthropic_model,
+                    max_tokens=1400,
+                    temperature=0,
+                    system=(
+                        "You are a guarded visual business-assessment assistant. Return only JSON "
+                        "that matches the provided schema. Do not include markdown or commentary. "
+                        "Use only visible evidence in the image and optional metadata. Do not infer "
+                        "income, caste, religion, gender, age, or other protected/sensitive traits. "
+                        "If evidence is unclear, lower confidence and explain the uncertainty."
+                    ),
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": mime_type,
+                                        "data": base64.b64encode(image_bytes).decode("ascii"),
+                                    },
+                                },
+                                {
+                                    "type": "text",
+                                    "text": self._build_assessment_prompt(metadata=metadata),
+                                },
+                            ],
+                        }
+                    ],
+                )
+                return self._parse_assessment_response(response)
+            except Exception as exc:  # noqa: BLE001 - SDK/parsing failures route to retry/manual review.
+                last_error = exc
+                logger.warning(
+                    "vision_assessment_attempt_failed",
+                    extra={
+                        "request_id": request_id,
+                        "attempt": attempt,
+                        "max_attempts": attempts,
+                        "error": str(exc),
+                    },
+                )
+
+        raise VisionModelError("vision assessment failed after retries") from last_error
+
     @staticmethod
     def _build_anthropic_client(settings: Settings) -> Any:
         import anthropic
@@ -118,6 +197,36 @@ class AnthropicVisionClient:
             return VisionUnderwritingResult.model_validate(payload)
         except (json.JSONDecodeError, ValidationError) as exc:
             raise VisionModelError("vision model returned malformed underwriting JSON") from exc
+
+    @staticmethod
+    def _build_assessment_prompt(*, metadata: AssessmentMetadata) -> str:
+        return (
+            "Identify whether the image most likely shows a shop, cattle, another asset, or is unknown.\n"
+            "For shop images, produce a visual scorecard using these dimensions only:\n"
+            "- inventory_score: visible stock depth, variety, and merchandising quality.\n"
+            "- footfall_signal_score: visible customer/staff movement or signs of regular traffic; do not invent people.\n"
+            "- shop_condition_score: cleanliness, organization, lighting, signage, and upkeep.\n"
+            "- business_vintage_signal_score: visible signs of established operations such as permanent fixtures, "
+            "aged signage, stocked shelves, or durable setup. Do not claim exact age.\n"
+            "- shop_genuineness_score: whether the scene looks like a real operating shop rather than staged/fake.\n"
+            "- operational_activity_score: visible indicators that the business is active/open and ready to trade.\n"
+            "For non-shop images, set shop_scorecard to null and explain why.\n"
+            "Guardrails: use only visual evidence; do not infer revenue, profit, repayment capacity, identity, "
+            "or protected/sensitive attributes. Mention uncertainty in guardrail_notes.\n"
+            f"Optional metadata JSON: {metadata.model_dump_json(exclude_none=True)}\n"
+            "Return JSON matching exactly this schema:\n"
+            f"{json.dumps(visual_assessment_json_schema_for_prompt(), separators=(',', ':'))}"
+        )
+
+    @classmethod
+    def _parse_assessment_response(cls, response: Any) -> VisualAssessmentResult:
+        text = cls._extract_text(response)
+        raw_json = cls._extract_json_object(text)
+        try:
+            payload = json.loads(raw_json)
+            return VisualAssessmentResult.model_validate(payload)
+        except (json.JSONDecodeError, ValidationError) as exc:
+            raise VisionModelError("vision model returned malformed assessment JSON") from exc
 
     @staticmethod
     def _extract_text(response: Any) -> str:
