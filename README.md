@@ -1,5 +1,91 @@
 # Sravamflow
 
+## Collection Voice Agent with LiveKit + Sarvam
+
+This repo includes a configurable voice-based collection agent for payment
+reminders and follow-ups. The prompt lives in a markdown file so you can edit the
+call script/personality, redeploy, and immediately test the updated behavior.
+
+### File structure
+
+```text
+collection_agent/
+  agent.py                         # LiveKit worker entrypoint
+  config.py                        # Env-based settings
+  prompts.py                       # Prompt file loader
+  prompts/collection_agent.md      # Editable collection prompt/script
+.env.example                       # Copy to .env and add real keys/settings
+```
+
+### Setup keys and voice settings
+
+```bash
+cp .env.example .env
+```
+
+Fill these values in `.env`:
+
+```env
+LIVEKIT_URL=wss://your-project-xxxxx.livekit.cloud
+LIVEKIT_API_KEY=APIxxxxxxxxxxxxx
+LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+SARVAM_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Optional settings in `.env`:
+
+```env
+COLLECTION_AGENT_PROMPT_PATH=collection_agent/prompts/collection_agent.md
+COLLECTION_AGENT_STT_LANGUAGE=unknown
+COLLECTION_AGENT_STT_MODEL=saaras:v3
+COLLECTION_AGENT_TTS_LANGUAGE=en-IN
+COLLECTION_AGENT_TTS_MODEL=bulbul:v3
+COLLECTION_AGENT_TTS_SPEAKER=aditya
+COLLECTION_AGENT_LLM_MODEL=sarvam-105b
+```
+
+### Change the prompt
+
+Edit:
+
+```text
+collection_agent/prompts/collection_agent.md
+```
+
+Then redeploy/restart the worker. The prompt is loaded on startup, so no Python
+code change is needed for normal script/personality changes.
+
+### Install and run
+
+```bash
+python3 -m pip install -e ".[voice]"
+python3 -m collection_agent.agent dev
+```
+
+In another terminal, test in console mode:
+
+```bash
+python3 -m collection_agent.agent console
+```
+
+### Supported language examples
+
+For Hindi:
+
+```env
+COLLECTION_AGENT_STT_LANGUAGE=hi-IN
+COLLECTION_AGENT_TTS_LANGUAGE=hi-IN
+COLLECTION_AGENT_TTS_SPEAKER=anand
+```
+
+For multilingual auto-detect STT with English response voice:
+
+```env
+COLLECTION_AGENT_STT_LANGUAGE=unknown
+COLLECTION_AGENT_TTS_LANGUAGE=en-IN
+COLLECTION_AGENT_TTS_SPEAKER=aditya
+```
+
 ## Visual Underwriting HTTP Service
 
 This service exposes the visual credit-underwriting agent over HTTP for ki Credit

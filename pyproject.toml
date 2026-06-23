@@ -22,6 +22,10 @@ dev = [
     "httpx",
     "pytest",
 ]
+voice = [
+    "livekit-agents[sarvam,silero]",
+    "python-dotenv",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
