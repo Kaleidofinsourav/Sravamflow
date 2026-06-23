@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -12,6 +13,7 @@ from visual_underwriting.image_validation import ImageValidationError, validate_
 from visual_underwriting.logging import configure_logging
 from visual_underwriting.schemas import AssetType, UnderwritingMetadata, UnderwritingResponse
 from visual_underwriting.storage import build_image_hash_store
+from visual_underwriting.ui import render_underwriting_ui
 from visual_underwriting.vision import AnthropicVisionClient
 
 
@@ -27,6 +29,11 @@ def create_app(settings: Settings | None = None, agent: VisualUnderwritingAgent 
     app = FastAPI(title="Visual Underwriting Service", version="0.1.0")
     app.state.settings = resolved_settings
     app.state.visual_underwriting_agent = resolved_agent
+
+    @app.get("/", response_class=HTMLResponse)
+    @app.get("/ui", response_class=HTMLResponse)
+    async def underwriting_ui() -> HTMLResponse:
+        return HTMLResponse(render_underwriting_ui())
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

@@ -13,6 +13,11 @@ export VISUAL_UNDERWRITING_ANTHROPIC_API_KEY="..."
 uvicorn visual_underwriting.main:app --host 0.0.0.0 --port 8000
 ```
 
+Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
+the upload UI. The page lets you choose shop vs cattle, select an image, enter
+metadata, submit to the API, and view the decision, weighted score, confidence,
+fraud flags, and raw JSON response.
+
 Useful configuration:
 
 | Environment variable | Default | Description |

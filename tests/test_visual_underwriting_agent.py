@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 
+from fastapi.testclient import TestClient
+
 from visual_underwriting.agent import VisualUnderwritingAgent
+from visual_underwriting.api import create_app
 from visual_underwriting.config import Settings
 from visual_underwriting.image_validation import validate_image_upload
 from visual_underwriting.schemas import (
@@ -181,3 +184,14 @@ def test_weighted_score_calculation_correctness() -> None:
     )
 
     assert score == 76.0
+
+
+def test_underwriting_ui_is_served() -> None:
+    app = create_app(settings=settings(), agent=make_agent())
+    client = TestClient(app)
+
+    response = client.get("/ui")
+
+    assert response.status_code == 200
+    assert "Visual Underwriting" in response.text
+    assert "/v1/underwriting/" in response.text
