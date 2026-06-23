@@ -69,8 +69,9 @@ VISUAL_UNDERWRITING_ANTHROPIC_API_KEY=...
 ```
 
 Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
-the image-first assessment UI. The page lets you upload an image without choosing
-shop/cattle first. The agent identifies what it sees and returns:
+the image-first assessment UI. The page lets you upload one image or bulk upload
+multiple images without choosing shop/cattle first. The agent identifies what it
+sees and returns:
 
 - identified asset type and identification confidence
 - overall visual confidence score
@@ -147,6 +148,87 @@ Sample response:
     "explanation": ["The image appears to show an operating retail shop."]
   },
   "explanation": ["The image appears to show an operating retail shop."]
+}
+```
+
+#### Bulk image-first visual assessment
+
+The UI automatically uses this endpoint when you select multiple images. Each
+file gets its own item in the response, so one invalid image does not hide the
+results for the valid images.
+
+```bash
+curl -X POST "http://localhost:8000/v1/underwriting/assess/bulk" \
+  -H "X-Request-ID: bulk-req-123" \
+  -F "images=@./shop-1.jpg;type=image/jpeg" \
+  -F "images=@./shop-2.jpg;type=image/jpeg" \
+  -F 'metadata={"notes":"Bulk FO image upload test."}'
+```
+
+Sample response:
+
+```json
+{
+  "request_id": "bulk-req-123",
+  "total": 2,
+  "succeeded": 2,
+  "failed": 0,
+  "items": [
+    {
+      "filename": "shop-1.jpg",
+      "status_code": 200,
+      "response": {
+        "request_id": "bulk-req-123-1",
+        "decision": "SCORED",
+        "result": {
+          "identified_asset_type": "shop",
+          "identified_asset_confidence": 0.7,
+          "overall_confidence_score": 74,
+          "assessment_confidence": 0.68,
+          "shop_scorecard": {
+            "inventory_score": 80,
+            "footfall_signal_score": 66,
+            "shop_condition_score": 75,
+            "business_vintage_signal_score": 70,
+            "shop_genuineness_score": 77,
+            "operational_activity_score": 72
+          },
+          "red_flags": ["MOCK_PROVIDER"],
+          "guardrail_notes": ["Mock provider does not truly inspect image semantics."],
+          "explanation": ["Demo response generated for local UI testing without external model calls."]
+        },
+        "explanation": ["Demo response generated for local UI testing without external model calls."]
+      },
+      "error": null
+    },
+    {
+      "filename": "shop-2.jpg",
+      "status_code": 200,
+      "response": {
+        "request_id": "bulk-req-123-2",
+        "decision": "SCORED",
+        "result": {
+          "identified_asset_type": "shop",
+          "identified_asset_confidence": 0.7,
+          "overall_confidence_score": 74,
+          "assessment_confidence": 0.68,
+          "shop_scorecard": {
+            "inventory_score": 78,
+            "footfall_signal_score": 64,
+            "shop_condition_score": 73,
+            "business_vintage_signal_score": 68,
+            "shop_genuineness_score": 75,
+            "operational_activity_score": 70
+          },
+          "red_flags": ["MOCK_PROVIDER"],
+          "guardrail_notes": ["Mock provider does not truly inspect image semantics."],
+          "explanation": ["Demo response generated for local UI testing without external model calls."]
+        },
+        "explanation": ["Demo response generated for local UI testing without external model calls."]
+      },
+      "error": null
+    }
+  ]
 }
 ```
 

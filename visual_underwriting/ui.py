@@ -62,6 +62,7 @@ def render_underwriting_ui() -> str:
     .preview-wrap {
       display: grid;
       place-items: center;
+      align-content: center;
       min-height: 320px;
       border: 1px dashed #b9c5d9;
       border-radius: 18px;
@@ -74,6 +75,36 @@ def render_underwriting_ui() -> str:
       max-height: 440px;
       object-fit: contain;
       background: #f8faff;
+    }
+    .preview-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      width: 100%;
+      padding: 12px;
+    }
+    .preview-tile {
+      background: #fff;
+      border: 1px solid #dce3ef;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .preview-tile img {
+      width: 100%;
+      height: 96px;
+      object-fit: cover;
+      display: block;
+      background: #eef3fb;
+    }
+    .preview-tile span {
+      display: block;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 750;
+      color: #536079;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .empty-preview { color: #71809b; font-weight: 700; text-align: center; padding: 18px; }
     button {
@@ -143,6 +174,19 @@ def render_underwriting_ui() -> str:
     }
     .error { color: #b42318; font-weight: 800; }
     .muted { color: #6a758d; }
+    .bulk-list { display: grid; gap: 12px; margin-top: 12px; }
+    .bulk-item {
+      background: #f7f9fd;
+      border: 1px solid #edf1f7;
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .bulk-item h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      word-break: break-word;
+    }
+    .bulk-meta { display: flex; flex-wrap: wrap; gap: 8px; }
     @media (max-width: 930px) {
       body { padding: 18px; }
       header { display: block; }
@@ -156,7 +200,7 @@ def render_underwriting_ui() -> str:
     <header>
       <div>
         <h1>Visual Underwriting Lab</h1>
-        <p>Upload any field image. The agent identifies what it sees and returns visual confidence plus business-quality signals.</p>
+        <p>Upload one or many field images. The agent identifies what it sees and returns visual confidence plus business-quality signals.</p>
       </div>
       <span class="badge">Image-first agent assessment</span>
     </header>
@@ -165,14 +209,14 @@ def render_underwriting_ui() -> str:
       <form id="assessment-form" class="card">
         <div class="fields">
           <div>
-            <label for="image">Upload image</label>
-            <input id="image" name="image" type="file" accept="image/*" required>
-            <div class="help">No shop/cattle selection needed. The model identifies the image type.</div>
+            <label for="image">Upload image/images</label>
+            <input id="image" name="image" type="file" accept="image/*" multiple required>
+            <div class="help">Select one image for single assessment or multiple images for bulk upload.</div>
           </div>
 
           <div class="preview-wrap">
-            <div id="empty-preview" class="empty-preview">Image preview will appear here</div>
-            <img id="preview" class="preview" alt="Selected upload preview">
+            <div id="empty-preview" class="empty-preview">Image previews will appear here</div>
+            <div id="preview-grid" class="preview-grid"></div>
           </div>
 
           <div>
@@ -203,7 +247,7 @@ def render_underwriting_ui() -> str:
             </div>
           </details>
 
-          <button id="submit-button" type="submit">Identify & score image</button>
+          <button id="submit-button" type="submit">Identify & score image(s)</button>
         </div>
       </form>
 
@@ -233,7 +277,7 @@ def render_underwriting_ui() -> str:
   <script>
     const form = document.getElementById("assessment-form");
     const imageInput = document.getElementById("image");
-    const preview = document.getElementById("preview");
+    const previewGrid = document.getElementById("preview-grid");
     const emptyPreview = document.getElementById("empty-preview");
     const submitButton = document.getElementById("submit-button");
     const responseBox = document.getElementById("response");
@@ -271,6 +315,15 @@ def render_underwriting_ui() -> str:
 
     function percentFromUnit(value) {
       return value === null || value === undefined ? "-" : `${Math.round(value * 100)}%`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     function renderScoreCard(key, value) {
@@ -322,6 +375,58 @@ def render_underwriting_ui() -> str:
         .join("");
     }
 
+    function renderBulkSummary(data) {
+      summary.innerHTML = `
+        <div class="status-row">
+          <span class="status scored">Bulk assessment complete</span>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric"><span>Total images</span><strong>${data.total}</strong></div>
+          <div class="metric"><span>Succeeded</span><strong>${data.succeeded}</strong></div>
+          <div class="metric"><span>Failed</span><strong>${data.failed}</strong></div>
+        </div>
+      `;
+
+      scoreGrid.innerHTML = `
+        <div class="bulk-list">
+          ${data.items.map((item, index) => {
+            if (item.error) {
+              return `
+                <div class="bulk-item">
+                  <h3>${index + 1}. ${escapeHtml(item.filename)}</h3>
+                  <div class="bulk-meta">
+                    <span class="status manual">HTTP ${item.status_code}</span>
+                    <span class="status manual">${escapeHtml(item.error)}</span>
+                  </div>
+                </div>
+              `;
+            }
+
+            const response = item.response || {};
+            const result = response.result || {};
+            const scorecard = result.shop_scorecard || {};
+            return `
+              <div class="bulk-item">
+                <h3>${index + 1}. ${escapeHtml(item.filename)}</h3>
+                <div class="bulk-meta">
+                  <span class="status ${response.decision === "SCORED" ? "scored" : "manual"}">${response.decision || "-"}</span>
+                  <span class="status">Detected: ${result.identified_asset_type || "-"}</span>
+                  <span class="status">Overall: ${result.overall_confidence_score ?? "-"}</span>
+                  <span class="status">Confidence: ${percentFromUnit(result.assessment_confidence)}</span>
+                </div>
+                ${result.red_flags?.length ? `<ul>${result.red_flags.map(flag => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>` : ""}
+                ${result.shop_scorecard ? `
+                  <div class="score-grid">
+                    ${Object.entries(scorecard).map(([key, value]) => renderScoreCard(key, value)).join("")}
+                  </div>
+                ` : `<p class="muted">Shop scorecard not applicable.</p>`}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+    }
+
     function renderError(message, detail) {
       summary.innerHTML = `
         <div class="status-row"><span class="status manual">Request failed</span></div>
@@ -332,26 +437,40 @@ def render_underwriting_ui() -> str:
     }
 
     imageInput.addEventListener("change", () => {
-      const file = imageInput.files[0];
-      if (!file) {
-        preview.style.display = "none";
+      const files = Array.from(imageInput.files || []);
+      if (!files.length) {
+        previewGrid.style.display = "none";
+        previewGrid.innerHTML = "";
         emptyPreview.style.display = "block";
-        preview.removeAttribute("src");
         return;
       }
-      preview.src = URL.createObjectURL(file);
-      preview.style.display = "block";
+      previewGrid.innerHTML = files.map(file => `
+        <div class="preview-tile">
+          <img src="${URL.createObjectURL(file)}" alt="${escapeHtml(file.name)} preview">
+          <span>${escapeHtml(file.name)}</span>
+        </div>
+      `).join("");
+      previewGrid.style.display = "grid";
       emptyPreview.style.display = "none";
     });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       submitButton.disabled = true;
-      submitButton.textContent = "Assessing image...";
+      const files = Array.from(imageInput.files || []);
+      if (!files.length) {
+        renderError("No image selected", { error: "Select at least one image." });
+        submitButton.disabled = false;
+        return;
+      }
+      submitButton.textContent = files.length > 1 ? `Assessing ${files.length} images...` : "Assessing image...";
       responseBox.textContent = "Submitting...";
 
       const formData = new FormData();
-      formData.append("image", imageInput.files[0]);
+      const isBulk = files.length > 1;
+      for (const file of files) {
+        formData.append(isBulk ? "images" : "image", file);
+      }
       formData.append("metadata", JSON.stringify(metadataPayload()));
 
       const headers = {};
@@ -359,7 +478,7 @@ def render_underwriting_ui() -> str:
       if (requestId) headers["X-Request-ID"] = requestId;
 
       try {
-        const response = await fetch("/v1/underwriting/assess", {
+        const response = await fetch(isBulk ? "/v1/underwriting/assess/bulk" : "/v1/underwriting/assess", {
           method: "POST",
           headers,
           body: formData
@@ -370,12 +489,16 @@ def render_underwriting_ui() -> str:
           renderError(`HTTP ${response.status}`, data);
           return;
         }
-        renderSummary(data);
+        if (isBulk) {
+          renderBulkSummary(data);
+        } else {
+          renderSummary(data);
+        }
       } catch (error) {
         renderError("Network or browser error", { error: String(error) });
       } finally {
         submitButton.disabled = false;
-        submitButton.textContent = "Identify & score image";
+        submitButton.textContent = "Identify & score image(s)";
       }
     });
   </script>

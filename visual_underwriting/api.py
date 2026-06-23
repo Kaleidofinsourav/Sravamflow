@@ -17,6 +17,9 @@ from visual_underwriting.schemas import (
     Decision,
     UnderwritingMetadata,
     UnderwritingResponse,
+    ImageValidationResult,
+    VisualAssessmentBulkItem,
+    VisualAssessmentBulkResponse,
     VisualAssessmentResponse,
 )
 from visual_underwriting.storage import build_image_hash_store
@@ -68,30 +71,57 @@ def create_app(
         except ImageValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        assessment_client: VisualAssessmentClient = app.state.visual_assessment_client
-        try:
-            result = await run_in_threadpool(
-                assessment_client.assess_image,
-                image_bytes=validated_image.content,
-                mime_type=validated_image.mime_type,
-                metadata=parsed_metadata,
-                request_id=request_id,
-            )
-        except VisionModelError as exc:
-            return VisualAssessmentResponse(
-                request_id=request_id,
-                decision=Decision.REFER_TO_MANUAL_REVIEW,
-                explanation=[
-                    "Vision assessment failed after retries; route this submission to manual review.",
-                    str(exc),
-                ],
-            )
-
-        return VisualAssessmentResponse(
+        return await _assess_validated_image(
+            app=app,
+            image=validated_image,
+            metadata=parsed_metadata,
             request_id=request_id,
-            decision=Decision.SCORED,
-            result=result,
-            explanation=result.explanation,
+        )
+
+    @app.post("/v1/underwriting/assess/bulk", response_model=VisualAssessmentBulkResponse)
+    async def assess_images_bulk(
+        images: list[UploadFile] = File(...),
+        metadata: str = Form(default="{}"),
+        x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
+    ) -> VisualAssessmentBulkResponse:
+        request_id = x_request_id or str(uuid4())
+        parsed_metadata = _parse_assessment_metadata(metadata)
+        items: list[VisualAssessmentBulkItem] = []
+
+        for index, image in enumerate(images, start=1):
+            item_request_id = f"{request_id}-{index}"
+            content = await image.read(app.state.settings.max_image_bytes + 1)
+            try:
+                validated_image = validate_image_upload(content, app.state.settings.max_image_bytes)
+                response = await _assess_validated_image(
+                    app=app,
+                    image=validated_image,
+                    metadata=parsed_metadata,
+                    request_id=item_request_id,
+                )
+                items.append(
+                    VisualAssessmentBulkItem(
+                        filename=image.filename or f"image-{index}",
+                        status_code=200,
+                        response=response,
+                    )
+                )
+            except ImageValidationError as exc:
+                items.append(
+                    VisualAssessmentBulkItem(
+                        filename=image.filename or f"image-{index}",
+                        status_code=400,
+                        error=str(exc),
+                    )
+                )
+
+        succeeded = sum(1 for item in items if item.status_code == 200)
+        return VisualAssessmentBulkResponse(
+            request_id=request_id,
+            total=len(items),
+            succeeded=succeeded,
+            failed=len(items) - succeeded,
+            items=items,
         )
 
     @app.post("/v1/underwriting/shop", response_model=UnderwritingResponse)
@@ -136,6 +166,40 @@ def _build_vision_client(settings: Settings) -> VisionClient:
     if provider == "anthropic":
         return AnthropicVisionClient(settings)
     raise ValueError(f"Unsupported VISUAL_UNDERWRITING_VISION_PROVIDER: {settings.vision_provider}")
+
+
+async def _assess_validated_image(
+    *,
+    app: FastAPI,
+    image: ImageValidationResult,
+    metadata: AssessmentMetadata,
+    request_id: str,
+) -> VisualAssessmentResponse:
+    assessment_client: VisualAssessmentClient = app.state.visual_assessment_client
+    try:
+        result = await run_in_threadpool(
+            assessment_client.assess_image,
+            image_bytes=image.content,
+            mime_type=image.mime_type,
+            metadata=metadata,
+            request_id=request_id,
+        )
+    except VisionModelError as exc:
+        return VisualAssessmentResponse(
+            request_id=request_id,
+            decision=Decision.REFER_TO_MANUAL_REVIEW,
+            explanation=[
+                "Vision assessment failed after retries; route this submission to manual review.",
+                str(exc),
+            ],
+        )
+
+    return VisualAssessmentResponse(
+        request_id=request_id,
+        decision=Decision.SCORED,
+        result=result,
+        explanation=result.explanation,
+    )
 
 
 async def _score_submission(

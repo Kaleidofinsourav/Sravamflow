@@ -227,6 +227,7 @@ def test_underwriting_ui_is_served() -> None:
     assert response.status_code == 200
     assert "Visual Underwriting Lab" in response.text
     assert "/v1/underwriting/assess" in response.text
+    assert "/v1/underwriting/assess/bulk" in response.text
 
 
 def test_auto_assessment_endpoint_identifies_image_and_returns_scorecard() -> None:
@@ -263,3 +264,31 @@ def test_mock_provider_assessment_flow_without_external_api() -> None:
     assert payload["decision"] == Decision.SCORED
     assert payload["result"]["identified_asset_type"] == VisualAssetCategory.SHOP
     assert "MOCK_PROVIDER" in payload["result"]["red_flags"]
+
+
+def test_bulk_assessment_endpoint_returns_per_file_results() -> None:
+    app = create_app(settings=settings(), agent=make_agent(), assessment_client=FakeAssessmentClient())
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/underwriting/assess/bulk",
+        files=[
+            ("images", ("shop-1.png", PNG_BYTES, "image/png")),
+            ("images", ("bad.txt", b"not an image", "text/plain")),
+        ],
+        data={"metadata": '{"notes":"bulk upload test"}'},
+        headers={"X-Request-ID": "bulk-assess"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["request_id"] == "bulk-assess"
+    assert payload["total"] == 2
+    assert payload["succeeded"] == 1
+    assert payload["failed"] == 1
+    assert payload["items"][0]["filename"] == "shop-1.png"
+    assert payload["items"][0]["response"]["request_id"] == "bulk-assess-1"
+    assert payload["items"][0]["response"]["result"]["shop_scorecard"]["inventory_score"] == 80
+    assert payload["items"][1]["filename"] == "bad.txt"
+    assert payload["items"][1]["status_code"] == 400
+    assert "not a supported image" in payload["items"][1]["error"]

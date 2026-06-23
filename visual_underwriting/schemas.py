@@ -132,6 +132,21 @@ class VisualAssessmentResponse(BaseModel):
     explanation: list[str] = Field(default_factory=list)
 
 
+class VisualAssessmentBulkItem(BaseModel):
+    filename: str
+    status_code: int
+    response: VisualAssessmentResponse | None = None
+    error: str | None = None
+
+
+class VisualAssessmentBulkResponse(BaseModel):
+    request_id: str
+    total: int
+    succeeded: int
+    failed: int
+    items: list[VisualAssessmentBulkItem]
+
+
 class ImageValidationResult(BaseModel):
     content: bytes
     sha256: str
