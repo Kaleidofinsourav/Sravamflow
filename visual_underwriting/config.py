@@ -1,4 +1,6 @@
 from functools import lru_cache
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +21,8 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0")
     redis_key_prefix: str = Field(default="visual-underwriting:image-hash")
     redis_hash_ttl_seconds: int | None = Field(default=None, gt=0)
+    underwriting_prompt_path: Path = Field(default=Path("visual_underwriting/prompts/underwriting_score.md"))
+    assessment_prompt_path: Path = Field(default=Path("visual_underwriting/prompts/visual_assessment.md"))
 
 
 @lru_cache

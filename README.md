@@ -1,91 +1,5 @@
 # Sravamflow
 
-## Collection Voice Agent with LiveKit + Sarvam
-
-This repo includes a configurable voice-based collection agent for payment
-reminders and follow-ups. The prompt lives in a markdown file so you can edit the
-call script/personality, redeploy, and immediately test the updated behavior.
-
-### File structure
-
-```text
-collection_agent/
-  agent.py                         # LiveKit worker entrypoint
-  config.py                        # Env-based settings
-  prompts.py                       # Prompt file loader
-  prompts/collection_agent.md      # Editable collection prompt/script
-.env.example                       # Copy to .env and add real keys/settings
-```
-
-### Setup keys and voice settings
-
-```bash
-cp .env.example .env
-```
-
-Fill these values in `.env`:
-
-```env
-LIVEKIT_URL=wss://your-project-xxxxx.livekit.cloud
-LIVEKIT_API_KEY=APIxxxxxxxxxxxxx
-LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-SARVAM_API_KEY=sk_xxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Optional settings in `.env`:
-
-```env
-COLLECTION_AGENT_PROMPT_PATH=collection_agent/prompts/collection_agent.md
-COLLECTION_AGENT_STT_LANGUAGE=unknown
-COLLECTION_AGENT_STT_MODEL=saaras:v3
-COLLECTION_AGENT_TTS_LANGUAGE=en-IN
-COLLECTION_AGENT_TTS_MODEL=bulbul:v3
-COLLECTION_AGENT_TTS_SPEAKER=aditya
-COLLECTION_AGENT_LLM_MODEL=sarvam-105b
-```
-
-### Change the prompt
-
-Edit:
-
-```text
-collection_agent/prompts/collection_agent.md
-```
-
-Then redeploy/restart the worker. The prompt is loaded on startup, so no Python
-code change is needed for normal script/personality changes.
-
-### Install and run
-
-```bash
-python3 -m pip install -e ".[voice]"
-python3 -m collection_agent.agent dev
-```
-
-In another terminal, test in console mode:
-
-```bash
-python3 -m collection_agent.agent console
-```
-
-### Supported language examples
-
-For Hindi:
-
-```env
-COLLECTION_AGENT_STT_LANGUAGE=hi-IN
-COLLECTION_AGENT_TTS_LANGUAGE=hi-IN
-COLLECTION_AGENT_TTS_SPEAKER=anand
-```
-
-For multilingual auto-detect STT with English response voice:
-
-```env
-COLLECTION_AGENT_STT_LANGUAGE=unknown
-COLLECTION_AGENT_TTS_LANGUAGE=en-IN
-COLLECTION_AGENT_TTS_SPEAKER=aditya
-```
-
 ## Visual Underwriting HTTP Service
 
 This service exposes the visual credit-underwriting agent over HTTP for ki Credit
@@ -95,9 +9,43 @@ backend calls when an FO submits a shop or cattle image from the Agent App.
 
 ```bash
 pip install -e ".[dev]"
-export VISUAL_UNDERWRITING_ANTHROPIC_API_KEY="..."
+cp .env.example .env
+# Fill VISUAL_UNDERWRITING_ANTHROPIC_API_KEY in .env
 uvicorn visual_underwriting.main:app --host 0.0.0.0 --port 8000
 ```
+
+### Editable prompt and key structure
+
+Keys and runtime settings live in:
+
+```text
+.env
+```
+
+Start from:
+
+```bash
+cp .env.example .env
+```
+
+The prompts live in markdown files:
+
+```text
+visual_underwriting/prompts/underwriting_score.md   # production shop/cattle scoring prompt
+visual_underwriting/prompts/visual_assessment.md    # image-first UI assessment prompt
+```
+
+To change model behavior:
+
+1. Edit the relevant markdown prompt file.
+2. Restart/redeploy the service.
+3. Test again from `http://localhost:8000/ui`.
+
+The prompt files support these placeholders:
+
+- `{{asset_type}}` for shop/cattle production scoring.
+- `{{metadata_json}}` for request metadata/context.
+- `{{schema_json}}` for the strict Pydantic JSON schema the model must return.
 
 Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
 the image-first assessment UI. The page lets you upload an image without choosing
@@ -126,6 +74,8 @@ Useful configuration:
 | `VISUAL_UNDERWRITING_LOW_CONFIDENCE_THRESHOLD` | `0.65` | Below this, route to manual review. |
 | `VISUAL_UNDERWRITING_IMAGE_HASH_STORAGE` | `memory` | Use `redis` for Redis-backed duplicate-image detection. |
 | `VISUAL_UNDERWRITING_REDIS_URL` | `redis://localhost:6379/0` | Redis URL when Redis storage is enabled. |
+| `VISUAL_UNDERWRITING_UNDERWRITING_PROMPT_PATH` | `visual_underwriting/prompts/underwriting_score.md` | Markdown prompt for shop/cattle scoring. |
+| `VISUAL_UNDERWRITING_ASSESSMENT_PROMPT_PATH` | `visual_underwriting/prompts/visual_assessment.md` | Markdown prompt for image-first UI assessment. |
 
 ### Endpoints
 

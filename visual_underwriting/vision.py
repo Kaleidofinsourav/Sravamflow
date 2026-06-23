@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from pydantic import ValidationError
 
 from visual_underwriting.config import Settings
+from visual_underwriting.prompts import load_prompt_template, render_prompt_template
 from visual_underwriting.schemas import (
     AssessmentMetadata,
     AssetType,
@@ -52,6 +53,8 @@ class AnthropicVisionClient:
     def __init__(self, settings: Settings, anthropic_client: Any | None = None) -> None:
         self._settings = settings
         self._client = anthropic_client or self._build_anthropic_client(settings)
+        self._underwriting_prompt_template = load_prompt_template(settings.underwriting_prompt_path)
+        self._assessment_prompt_template = load_prompt_template(settings.assessment_prompt_path)
 
     def score_image(
         self,
@@ -178,14 +181,14 @@ class AnthropicVisionClient:
             kwargs["api_key"] = settings.anthropic_api_key
         return anthropic.Anthropic(**kwargs)
 
-    @staticmethod
-    def _build_prompt(*, asset_type: AssetType, metadata: UnderwritingMetadata) -> str:
-        return (
-            f"Assess this {asset_type.value} image for credit underwriting.\n"
-            "Use the metadata for consistency checks but do not invent fields.\n"
-            f"Metadata JSON: {metadata.model_dump_json()}\n"
-            "Return JSON matching exactly this schema:\n"
-            f"{json.dumps(vision_json_schema_for_prompt(), separators=(',', ':'))}"
+    def _build_prompt(self, *, asset_type: AssetType, metadata: UnderwritingMetadata) -> str:
+        return render_prompt_template(
+            self._underwriting_prompt_template,
+            {
+                "asset_type": asset_type.value,
+                "metadata_json": metadata.model_dump_json(),
+                "schema_json": json.dumps(vision_json_schema_for_prompt(), separators=(",", ":")),
+            },
         )
 
     @classmethod
@@ -198,24 +201,13 @@ class AnthropicVisionClient:
         except (json.JSONDecodeError, ValidationError) as exc:
             raise VisionModelError("vision model returned malformed underwriting JSON") from exc
 
-    @staticmethod
-    def _build_assessment_prompt(*, metadata: AssessmentMetadata) -> str:
-        return (
-            "Identify whether the image most likely shows a shop, cattle, another asset, or is unknown.\n"
-            "For shop images, produce a visual scorecard using these dimensions only:\n"
-            "- inventory_score: visible stock depth, variety, and merchandising quality.\n"
-            "- footfall_signal_score: visible customer/staff movement or signs of regular traffic; do not invent people.\n"
-            "- shop_condition_score: cleanliness, organization, lighting, signage, and upkeep.\n"
-            "- business_vintage_signal_score: visible signs of established operations such as permanent fixtures, "
-            "aged signage, stocked shelves, or durable setup. Do not claim exact age.\n"
-            "- shop_genuineness_score: whether the scene looks like a real operating shop rather than staged/fake.\n"
-            "- operational_activity_score: visible indicators that the business is active/open and ready to trade.\n"
-            "For non-shop images, set shop_scorecard to null and explain why.\n"
-            "Guardrails: use only visual evidence; do not infer revenue, profit, repayment capacity, identity, "
-            "or protected/sensitive attributes. Mention uncertainty in guardrail_notes.\n"
-            f"Optional metadata JSON: {metadata.model_dump_json(exclude_none=True)}\n"
-            "Return JSON matching exactly this schema:\n"
-            f"{json.dumps(visual_assessment_json_schema_for_prompt(), separators=(',', ':'))}"
+    def _build_assessment_prompt(self, *, metadata: AssessmentMetadata) -> str:
+        return render_prompt_template(
+            self._assessment_prompt_template,
+            {
+                "metadata_json": metadata.model_dump_json(exclude_none=True),
+                "schema_json": json.dumps(visual_assessment_json_schema_for_prompt(), separators=(",", ":")),
+            },
         )
 
     @classmethod
