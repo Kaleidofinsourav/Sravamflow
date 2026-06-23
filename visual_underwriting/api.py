@@ -21,7 +21,7 @@ from visual_underwriting.schemas import (
 )
 from visual_underwriting.storage import build_image_hash_store
 from visual_underwriting.ui import render_underwriting_ui
-from visual_underwriting.vision import AnthropicVisionClient, VisionModelError, VisualAssessmentClient
+from visual_underwriting.vision import AnthropicVisionClient, MockVisionClient, VisionClient, VisionModelError, VisualAssessmentClient
 
 
 def create_app(
@@ -31,7 +31,7 @@ def create_app(
 ) -> FastAPI:
     configure_logging()
     resolved_settings = settings or get_settings()
-    vision_client = AnthropicVisionClient(resolved_settings)
+    vision_client = _build_vision_client(resolved_settings)
     resolved_agent = agent or VisualUnderwritingAgent(
         vision_client=vision_client,
         image_hash_store=build_image_hash_store(resolved_settings),
@@ -127,6 +127,15 @@ def create_app(
         )
 
     return app
+
+
+def _build_vision_client(settings: Settings) -> VisionClient:
+    provider = settings.vision_provider.lower()
+    if provider == "mock":
+        return MockVisionClient()
+    if provider == "anthropic":
+        return AnthropicVisionClient(settings)
+    raise ValueError(f"Unsupported VISUAL_UNDERWRITING_VISION_PROVIDER: {settings.vision_provider}")
 
 
 async def _score_submission(

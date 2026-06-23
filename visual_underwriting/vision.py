@@ -10,9 +10,14 @@ from visual_underwriting.prompts import load_prompt_template, render_prompt_temp
 from visual_underwriting.schemas import (
     AssessmentMetadata,
     AssetType,
+    FraudFlag,
+    FraudSeverity,
     UnderwritingMetadata,
+    VisionScoreComponents,
     VisionUnderwritingResult,
     VisualAssessmentResult,
+    VisualAssetCategory,
+    ShopVisualScorecard,
     visual_assessment_json_schema_for_prompt,
     vision_json_schema_for_prompt,
 )
@@ -47,6 +52,87 @@ class VisualAssessmentClient(Protocol):
         request_id: str,
     ) -> VisualAssessmentResult:
         ...
+
+
+class MockVisionClient:
+    """No-external-API provider for UI demos and local flow testing."""
+
+    def score_image(
+        self,
+        *,
+        asset_type: AssetType,
+        image_bytes: bytes,
+        mime_type: str,
+        metadata: UnderwritingMetadata,
+        request_id: str,
+    ) -> VisionUnderwritingResult:
+        base_score = self._score_from_image_size(image_bytes)
+        cattle_count = metadata.declared_cattle_count if asset_type == AssetType.CATTLE else None
+        return VisionUnderwritingResult(
+            score_components=VisionScoreComponents(
+                asset_presence=base_score,
+                asset_quality=max(0, base_score - 8),
+                context_consistency=max(0, base_score - 5),
+                repayment_capacity_signal=max(0, base_score - 12),
+            ),
+            confidence=0.72,
+            fraud_flags=[
+                FraudFlag(
+                    code="MOCK_PROVIDER",
+                    severity=FraudSeverity.SOFT,
+                    message="Mock provider used; image semantics were not evaluated by a real vision model.",
+                )
+            ],
+            observed_cattle_count=cattle_count,
+            explanation=[
+                "Demo response generated without external model calls.",
+                "Switch VISUAL_UNDERWRITING_VISION_PROVIDER=anthropic for real image interpretation.",
+            ],
+        )
+
+    def assess_image(
+        self,
+        *,
+        image_bytes: bytes,
+        mime_type: str,
+        metadata: AssessmentMetadata,
+        request_id: str,
+    ) -> VisualAssessmentResult:
+        note_text = (metadata.notes or "").lower()
+        if "cattle" in note_text:
+            asset_type = VisualAssetCategory.CATTLE
+            shop_scorecard = None
+            explanation = ["Demo response: optional notes mention cattle, so the mock provider labels this as cattle."]
+        else:
+            asset_type = VisualAssetCategory.SHOP
+            score = self._score_from_image_size(image_bytes)
+            shop_scorecard = ShopVisualScorecard(
+                inventory_score=score,
+                footfall_signal_score=max(0, score - 14),
+                shop_condition_score=max(0, score - 5),
+                business_vintage_signal_score=max(0, score - 10),
+                shop_genuineness_score=max(0, score - 3),
+                operational_activity_score=max(0, score - 8),
+            )
+            explanation = ["Demo response generated for local UI testing without external model calls."]
+
+        return VisualAssessmentResult(
+            identified_asset_type=asset_type,
+            identified_asset_confidence=0.7,
+            overall_confidence_score=74,
+            assessment_confidence=0.68,
+            shop_scorecard=shop_scorecard,
+            red_flags=["MOCK_PROVIDER"],
+            guardrail_notes=[
+                "Mock provider does not truly inspect image semantics.",
+                "Use a real vision provider before making underwriting decisions.",
+            ],
+            explanation=explanation,
+        )
+
+    @staticmethod
+    def _score_from_image_size(image_bytes: bytes) -> float:
+        return float(70 + min(20, len(image_bytes) % 21))
 
 
 class AnthropicVisionClient:

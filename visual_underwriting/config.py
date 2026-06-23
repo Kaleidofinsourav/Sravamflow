@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     anthropic_model: str = Field(default="claude-3-5-sonnet-latest")
     anthropic_timeout_seconds: float = Field(default=20.0, gt=0)
     anthropic_max_retries: int = Field(default=2, ge=0)
+    vision_provider: str = Field(default="mock")
 
     max_image_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
     geofence_radius_meters: float = Field(default=500.0, gt=0)

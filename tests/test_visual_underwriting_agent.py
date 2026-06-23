@@ -246,3 +246,20 @@ def test_auto_assessment_endpoint_identifies_image_and_returns_scorecard() -> No
     assert payload["decision"] == Decision.SCORED
     assert payload["result"]["identified_asset_type"] == VisualAssetCategory.SHOP
     assert payload["result"]["shop_scorecard"]["inventory_score"] == 80
+
+
+def test_mock_provider_assessment_flow_without_external_api() -> None:
+    app = create_app(settings=settings(vision_provider="mock"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/v1/underwriting/assess",
+        files={"image": ("shop.png", PNG_BYTES, "image/png")},
+        data={"metadata": '{"notes":"local UI test"}'},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["decision"] == Decision.SCORED
+    assert payload["result"]["identified_asset_type"] == VisualAssetCategory.SHOP
+    assert "MOCK_PROVIDER" in payload["result"]["red_flags"]

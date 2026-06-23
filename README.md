@@ -10,7 +10,7 @@ backend calls when an FO submits a shop or cattle image from the Agent App.
 ```bash
 pip install -e ".[dev]"
 cp .env.example .env
-# Fill VISUAL_UNDERWRITING_ANTHROPIC_API_KEY in .env
+# Default local/demo mode uses VISUAL_UNDERWRITING_VISION_PROVIDER=mock.
 uvicorn visual_underwriting.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -47,6 +47,27 @@ The prompt files support these placeholders:
 - `{{metadata_json}}` for request metadata/context.
 - `{{schema_json}}` for the strict Pydantic JSON schema the model must return.
 
+### Model provider for testing
+
+Cursor chat/IDE models such as Opus or GPT are not available as a runtime API
+that this FastAPI service can call after deployment. For local UI testing without
+external model keys, use the built-in mock provider:
+
+```env
+VISUAL_UNDERWRITING_VISION_PROVIDER=mock
+```
+
+Mock mode lets the upload UI and API flow work without Anthropic/Sarvam calls,
+but it does not truly interpret the image. It returns a clearly marked
+`MOCK_PROVIDER` red flag and deterministic demo scores.
+
+For real image understanding, switch to:
+
+```env
+VISUAL_UNDERWRITING_VISION_PROVIDER=anthropic
+VISUAL_UNDERWRITING_ANTHROPIC_API_KEY=...
+```
+
 Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
 the image-first assessment UI. The page lets you upload an image without choosing
 shop/cattle first. The agent identifies what it sees and returns:
@@ -66,6 +87,7 @@ Useful configuration:
 | Environment variable | Default | Description |
 | --- | --- | --- |
 | `VISUAL_UNDERWRITING_ANTHROPIC_API_KEY` | unset | Anthropic API key. |
+| `VISUAL_UNDERWRITING_VISION_PROVIDER` | `mock` | `mock` for local UI tests without model API calls, `anthropic` for real vision scoring. |
 | `VISUAL_UNDERWRITING_ANTHROPIC_MODEL` | `claude-3-5-sonnet-latest` | Vision-capable Anthropic model. |
 | `VISUAL_UNDERWRITING_ANTHROPIC_TIMEOUT_SECONDS` | `20` | Anthropic request timeout. |
 | `VISUAL_UNDERWRITING_ANTHROPIC_MAX_RETRIES` | `2` | Retry count after a failed model call or malformed model output. |
