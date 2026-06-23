@@ -1,0 +1,13 @@
+[build]
+publish = "netlify/static"
+functions = "netlify/functions"
+
+[[redirects]]
+from = "/api/assess"
+to = "/.netlify/functions/assess"
+status = 200
+
+[[redirects]]
+from = "/api/assess-bulk"
+to = "/.netlify/functions/assess-bulk"
+status = 200

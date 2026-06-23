@@ -68,6 +68,43 @@ VISUAL_UNDERWRITING_VISION_PROVIDER=anthropic
 VISUAL_UNDERWRITING_ANTHROPIC_API_KEY=...
 ```
 
+### Netlify hosted mock demo
+
+The Python/FastAPI backend does not run as a normal Netlify static site. For a
+quick hosted demo link, this repo includes a Netlify static/mock version under:
+
+```text
+netlify/
+  static/index.html
+  functions/assess.js
+  functions/assess-bulk.js
+netlify.toml
+```
+
+This hosted demo supports single and bulk image selection in the browser, but it
+uses mock Netlify Functions and does not truly inspect image pixels. It is only
+for testing the UI/result flow.
+
+Deploy with:
+
+```bash
+npm install -g netlify-cli
+netlify deploy --prod --dir=netlify/static --functions=netlify/functions
+```
+
+For non-interactive deployment, set:
+
+```env
+NETLIFY_AUTH_TOKEN=...
+NETLIFY_SITE_ID=...
+```
+
+Then run:
+
+```bash
+netlify deploy --prod --dir=netlify/static --functions=netlify/functions --site "$NETLIFY_SITE_ID"
+```
+
 Open `http://localhost:8000/` or `http://localhost:8000/ui` in a browser to use
 the image-first assessment UI. The page lets you upload one image or bulk upload
 multiple images without choosing shop/cattle first. The agent identifies what it

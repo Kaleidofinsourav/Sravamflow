@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visual Underwriting Netlify Demo</title>
+  <style>
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f3f6fb;
+      color: #152033;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; }
+    main { max-width: 1180px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 22px; }
+    h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.03em; }
+    p { color: #5d687c; line-height: 1.5; margin: 0; }
+    .badge { background: #fff4e6; color: #a55a00; border-radius: 999px; padding: 9px 13px; font-weight: 850; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: minmax(340px, 0.85fr) minmax(420px, 1fr); gap: 22px; }
+    .card { background: #fff; border: 1px solid #dce3ef; border-radius: 22px; box-shadow: 0 20px 50px rgba(23, 35, 61, 0.08); padding: 22px; }
+    label { display: block; font-weight: 750; font-size: 13px; margin: 0 0 7px; color: #25304a; }
+    input, textarea { width: 100%; border: 1px solid #ccd5e5; border-radius: 12px; padding: 12px 13px; font: inherit; background: #fff; }
+    textarea { min-height: 86px; resize: vertical; }
+    .fields { display: grid; gap: 16px; }
+    .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; min-height: 220px; border: 1px dashed #b9c5d9; border-radius: 18px; background: #f8faff; padding: 12px; align-content: start; }
+    .empty { color: #71809b; font-weight: 750; text-align: center; padding: 76px 12px; grid-column: 1 / -1; }
+    .preview-tile { background: #fff; border: 1px solid #dce3ef; border-radius: 14px; overflow: hidden; }
+    .preview-tile img { width: 100%; height: 96px; object-fit: cover; display: block; background: #eef3fb; }
+    .preview-tile span { display: block; padding: 8px; font-size: 11px; font-weight: 750; color: #536079; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    button { border: 0; border-radius: 14px; padding: 14px 18px; background: linear-gradient(135deg, #2f6fed, #6045e8); color: #fff; font-weight: 850; cursor: pointer; width: 100%; }
+    button:disabled { opacity: 0.68; cursor: wait; }
+    .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 8px 12px; font-weight: 850; font-size: 13px; background: #eef2ff; color: #3153bd; margin: 0 8px 8px 0; }
+    .status.scored { background: #eaf8ef; color: #16713a; }
+    .status.manual { background: #fff4e6; color: #a55a00; }
+    .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .metric, .score-card, .result-item { background: #f7f9fd; border: 1px solid #edf1f7; border-radius: 16px; padding: 15px; }
+    .metric span, .score-card span { display: block; color: #6a758d; font-size: 11px; font-weight: 850; text-transform: uppercase; }
+    .metric strong { display: block; margin-top: 5px; font-size: 28px; letter-spacing: -0.03em; }
+    .score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .score-value strong { font-size: 26px; }
+    .bar { height: 8px; background: #e3e8f2; border-radius: 999px; overflow: hidden; margin-top: 10px; }
+    .bar div { height: 100%; background: linear-gradient(90deg, #2f6fed, #19a76f); }
+    pre { white-space: pre-wrap; word-break: break-word; background: #101827; color: #e6edf6; padding: 16px; border-radius: 16px; overflow: auto; min-height: 150px; }
+    .muted { color: #6a758d; }
+    @media (max-width: 900px) { body { padding: 18px; } header { display: block; } .grid, .metric-grid, .score-grid { grid-template-columns: 1fr; } .badge { display: inline-flex; margin-top: 12px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Visual Underwriting Demo</h1>
+        <p>Bulk upload one or many images and see the underwriting scorecard flow. This Netlify demo uses mock responses only.</p>
+      </div>
+      <span class="badge">Netlify mock provider</span>
+    </header>
+
+    <section class="grid">
+      <form id="form" class="card">
+        <div class="fields">
+          <div>
+            <label for="images">Upload image/images</label>
+            <input id="images" type="file" accept="image/*" multiple required>
+            <p class="muted">Select one image for single assessment or multiple for bulk assessment.</p>
+          </div>
+          <div id="preview" class="preview-grid"><div class="empty">Image previews will appear here</div></div>
+          <div>
+            <label for="request_id">Request ID</label>
+            <input id="request_id" placeholder="optional correlation id">
+          </div>
+          <div>
+            <label for="notes">Optional notes</label>
+            <textarea id="notes" placeholder="Example: FO submitted these as kirana shop images."></textarea>
+          </div>
+          <button id="submit" type="submit">Identify & score image(s)</button>
+        </div>
+      </form>
+
+      <aside class="card">
+        <div id="summary">
+          <span class="status">Waiting for upload</span>
+          <div class="metric-grid">
+            <div class="metric"><span>Total</span><strong>-</strong></div>
+            <div class="metric"><span>Succeeded</span><strong>-</strong></div>
+            <div class="metric"><span>Failed</span><strong>-</strong></div>
+          </div>
+        </div>
+        <h2>Results</h2>
+        <div id="results"><p class="muted">Run an assessment to see scorecards.</p></div>
+        <h2>Raw response</h2>
+        <pre id="raw">{}</pre>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("form");
+    const images = document.getElementById("images");
+    const preview = document.getElementById("preview");
+    const submit = document.getElementById("submit");
+    const summary = document.getElementById("summary");
+    const results = document.getElementById("results");
+    const raw = document.getElementById("raw");
+
+    const labels = {
+      inventory_score: "Inventory",
+      footfall_signal_score: "Footfall signal",
+      shop_condition_score: "Shop condition",
+      business_vintage_signal_score: "Vintage signal",
+      shop_genuineness_score: "Looks genuine",
+      operational_activity_score: "Operational activity"
+    };
+
+    function escapeHtml(value) {
+      return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function percent(value) {
+      return value === null || value === undefined ? "-" : `${Math.round(value * 100)}%`;
+    }
+
+    function scoreCard(key, value) {
+      const safe = Number(value || 0);
+      return `<div class="score-card"><span>${labels[key] || key}</span><div class="score-value"><strong>${safe}</strong><small>/100</small></div><div class="bar"><div style="width:${Math.max(0, Math.min(100, safe))}%"></div></div></div>`;
+    }
+
+    function renderItem(item, index) {
+      const response = item.response || {};
+      const result = response.result || {};
+      const scorecard = result.shop_scorecard || {};
+      return `
+        <div class="result-item">
+          <h3>${index + 1}. ${escapeHtml(item.filename)}</h3>
+          <span class="status ${response.decision === "SCORED" ? "scored" : "manual"}">${response.decision || "FAILED"}</span>
+          <span class="status">Detected: ${result.identified_asset_type || "-"}</span>
+          <span class="status">Overall: ${result.overall_confidence_score ?? "-"}</span>
+          <span class="status">Confidence: ${percent(result.assessment_confidence)}</span>
+          ${item.error ? `<p class="muted">${escapeHtml(item.error)}</p>` : ""}
+          ${result.red_flags?.length ? `<p class="muted">Flags: ${result.red_flags.map(escapeHtml).join(", ")}</p>` : ""}
+          ${result.shop_scorecard ? `<div class="score-grid">${Object.entries(scorecard).map(([key, value]) => scoreCard(key, value)).join("")}</div>` : `<p class="muted">Shop scorecard not applicable.</p>`}
+        </div>
+      `;
+    }
+
+    function renderResponse(data) {
+      raw.textContent = JSON.stringify(data, null, 2);
+      if (data.items) {
+        summary.innerHTML = `<span class="status scored">Bulk complete</span><div class="metric-grid"><div class="metric"><span>Total</span><strong>${data.total}</strong></div><div class="metric"><span>Succeeded</span><strong>${data.succeeded}</strong></div><div class="metric"><span>Failed</span><strong>${data.failed}</strong></div></div>`;
+        results.innerHTML = data.items.map(renderItem).join("");
+      } else {
+        summary.innerHTML = `<span class="status ${data.decision === "SCORED" ? "scored" : "manual"}">${data.decision}</span><div class="metric-grid"><div class="metric"><span>Detected</span><strong>${data.result?.identified_asset_type || "-"}</strong></div><div class="metric"><span>Overall</span><strong>${data.result?.overall_confidence_score ?? "-"}</strong></div><div class="metric"><span>Confidence</span><strong>${percent(data.result?.assessment_confidence)}</strong></div></div>`;
+        results.innerHTML = renderItem({ filename: images.files[0]?.name || "image", status_code: 200, response: data }, 0);
+      }
+    }
+
+    images.addEventListener("change", () => {
+      const files = Array.from(images.files || []);
+      if (!files.length) {
+        preview.innerHTML = `<div class="empty">Image previews will appear here</div>`;
+        return;
+      }
+      preview.innerHTML = files.map(file => `<div class="preview-tile"><img src="${URL.createObjectURL(file)}" alt="${escapeHtml(file.name)} preview"><span>${escapeHtml(file.name)}</span></div>`).join("");
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const files = Array.from(images.files || []);
+      if (!files.length) return;
+      submit.disabled = true;
+      submit.textContent = files.length > 1 ? `Assessing ${files.length} images...` : "Assessing image...";
+      const requestId = document.getElementById("request_id").value.trim();
+      const metadata = { notes: document.getElementById("notes").value.trim() };
+      const body = {
+        request_id: requestId || undefined,
+        metadata,
+        file: files[0] ? { name: files[0].name, size: files[0].size, type: files[0].type } : undefined,
+        files: files.map(file => ({ name: file.name, size: file.size, type: file.type }))
+      };
+      try {
+        const response = await fetch(files.length > 1 ? "/api/assess-bulk" : "/api/assess", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        renderResponse(await response.json());
+      } catch (error) {
+        raw.textContent = JSON.stringify({ error: String(error) }, null, 2);
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Identify & score image(s)";
+      }
+    });
+  </script>
+</body>
+</html>
